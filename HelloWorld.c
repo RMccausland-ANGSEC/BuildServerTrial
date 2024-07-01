@@ -1,55 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
-#include <stdint.h>
+#include <ctype.h>
+#include "rng.h"
 #include "api.h"
 
-int randombytes1 (unsigned char* random_array, unsigned long long num_bytes);
+#define MLEN 59
+
 char *showhex(uint8_t a[], int size) ;
-int main(void) {
-  printf("NAME: %s\n", CRYPTO_ALGNAME);
-    printf("Private key size: %d\n", CRYPTO_SECRETKEYBYTES );
-    printf("Public key size: %d\n", CRYPTO_PUBLICKEYBYTES );
-    printf("Signature size: %d\n\n", CRYPTO_BYTES );
-    unsigned char sm[256 + CRYPTO_BYTES];
-    unsigned char m[256];
-    for (unsigned i = 0; i < 256; i++) {
-        m[i] = i;
-    }
-    unsigned long long mlen = 256;
-    unsigned long long smlen;
-    unsigned char *pk = (unsigned char *)malloc( CRYPTO_PUBLICKEYBYTES );
-    unsigned char *sk = (unsigned char *)malloc( CRYPTO_SECRETKEYBYTES );
-
-            int r0;
-            r0 = crypto_sign_keypair( pk, sk);
-            if ( 0 != r0 ) {
-                printf("generating key return %d.\n", r0);
-                return -1;
-            }
-     
- randombytes1(m, mlen);
-        int r1, r2;
-        r1 = crypto_sign( sm, &smlen, m, mlen, sk );
-        if ( 0 != r1 ) {
-            printf("crypto_sign() return %d.\n", r1);
-            return -1;
-        }
-        r2 = crypto_sign_open( m, &mlen, sm, smlen, pk );
-        if ( 0 != r2 ) {
-            printf("crypto_sign_open() return %d.\n", r2);
-            return -1;
-        }
- printf("\nMessage: %s\n",showhex(m,mlen));
-  printf("\nAlice Public key: %s\n\n",showhex(pk,CRYPTO_PUBLICKEYBYTES));
-  printf("Alice Secret key: %s\n\n",showhex(sk,CRYPTO_SECRETKEYBYTES ));
-  printf("Signature (128th of signature): %s\n\n",showhex(sm,CRYPTO_BYTES/128));
-  if (r2==0) printf("Signature verified");
-
-    return 0;
-}
-
+// int randombytes (unsigned char* random_array, unsigned long long num_bytes);
+char *showhex(uint8_t a[], int size) ;
+// int randombytes (unsigned char* random_array, unsigned long long num_bytes);
 char *showhex(uint8_t a[], int size) {
 
     char *s =malloc(size * 2 + 1);
@@ -57,14 +18,53 @@ char *showhex(uint8_t a[], int size) {
         sprintf(s + i * 2, "%02x", a[i]);
     return(s);
 }
-int randombytes1 (unsigned char* random_array, unsigned long long num_bytes)
+
+int main(void)
 {
- // unsigned char *random_array = malloc (num_bytes);
-  size_t i;
-srand ((unsigned int) time (NULL));
-  for (i = 0; i < num_bytes; i++)
-  {
-    random_array[i] = rand ();
-  }
+  size_t j;
+  int ret;
+  uint8_t b;
+  uint8_t m[MLEN + CRYPTO_BYTES];
+  uint8_t m2[MLEN + CRYPTO_BYTES];
+ // uint8_t sm[MLEN + CRYPTO_BYTES];
+  uint8_t pk[CRYPTO_PUBLICKEYBYTES+1];
+  uint8_t sk[CRYPTO_SECRETKEYBYTES+1];
+ unsigned char sm[sizeof(m) + CRYPTO_BYTES];
+ long long unsigned int smlen = sizeof(sm);
+    unsigned char mprime[50] = { 0 };
+ 
+    long long unsigned int mlen = sizeof(mprime);
+  printf("NAME: %s\n", CRYPTO_ALGNAME);
+  printf("CRYPTO_PUBLICKEYBYTES = %d\n", CRYPTO_PUBLICKEYBYTES);
+  printf("CRYPTO_SECRETKEYBYTES = %d\n", CRYPTO_SECRETKEYBYTES);
+  printf("CRYPTO_BYTES = %d\n", CRYPTO_BYTES);
+    randombytes(m, MLEN);
+  printf("\nMessage: %s\n",showhex(m,MLEN));
+    crypto_sign_keypair(pk, sk);
+    crypto_sign(sm, &smlen, m, MLEN, sk);
+    ret = crypto_sign_open(m2, &mlen, sm, smlen, pk);
+    if(ret) {
+      fprintf(stderr, "Verification failed\n");
+      return -1;
+    }
+    if(smlen != MLEN + CRYPTO_BYTES) {
+      fprintf(stderr, "Signed message lengths wrong\n");
+      return -1;
+    } 
+    if(mlen != MLEN) {
+      fprintf(stderr, "Message lengths wrong\n");
+      return -1;
+    }
+    for(j = 0; j < MLEN; ++j) {
+      if(m2[j] != m[j]) {
+        fprintf(stderr, "Messages don't match\n");
+        return -1;
+      }
+    }
+
+  
+  printf("\nAlice Public key: %s\n",showhex(pk,CRYPTO_PUBLICKEYBYTES));
+  printf("Alice Secret key: %s\n",showhex(pk,CRYPTO_SECRETKEYBYTES));
+  printf("Signature (showing 1/512th): %s\n",showhex(sm,smlen/512));
   return 0;
 }
